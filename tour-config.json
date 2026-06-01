@@ -1,0 +1,117 @@
+{
+  "title": "Tour Virtual 360° — Río",
+  "frames": [
+    "frames-web/frame_000000_0.000s.jpg",
+    "frames-web/frame_000018_0.601s.jpg",
+    "frames-web/frame_000026_0.868s.jpg",
+    "frames-web/frame_000038_1.268s.jpg",
+    "frames-web/frame_000072_2.402s.jpg",
+    "frames-web/frame_000101_3.370s.jpg",
+    "frames-web/frame_000130_4.338s.jpg",
+    "frames-web/frame_000159_5.305s.jpg",
+    "frames-web/frame_000188_6.273s.jpg",
+    "frames-web/frame_000217_7.241s.jpg",
+    "frames-web/frame_000246_8.208s.jpg",
+    "frames-web/frame_000275_9.176s.jpg",
+    "frames-web/frame_000304_10.143s.jpg",
+    "frames-web/frame_000333_11.111s.jpg",
+    "frames-web/frame_000362_12.079s.jpg",
+    "frames-web/frame_000391_13.046s.jpg",
+    "frames-web/frame_000420_14.014s.jpg",
+    "frames-web/frame_000449_14.982s.jpg",
+    "frames-web/frame_000478_15.949s.jpg",
+    "frames-web/frame_000491_16.383s.jpg"
+  ],
+  "pois": [
+    {
+      "id": "salida",
+      "label": "Punto de salida",
+      "frame": 0,
+      "cameraAngle": { "lon": 0, "lat": 0 },
+      "description": "Inicio del recorrido en lancha"
+    },
+    {
+      "id": "aguas-cristalinas",
+      "label": "Aguas cristalinas",
+      "frame": 5,
+      "cameraAngle": { "lon": -20, "lat": -15 },
+      "description": "Vista del río turquesa"
+    },
+    {
+      "id": "bosque-rivera",
+      "label": "Bosque ribereño",
+      "frame": 10,
+      "cameraAngle": { "lon": 70, "lat": 5 },
+      "description": "Vegetación nativa en las orillas"
+    },
+    {
+      "id": "panoramica",
+      "label": "Vista panorámica",
+      "frame": 15,
+      "cameraAngle": { "lon": 0, "lat": 10 },
+      "description": "Montañas al fondo del valle"
+    },
+    {
+      "id": "llegada",
+      "label": "Llegada",
+      "frame": 19,
+      "cameraAngle": { "lon": 0, "lat": 0 },
+      "description": "Final del recorrido"
+    }
+  ],
+  "overlays": [
+    {
+      "id": "bienvenida",
+      "type": "info",
+      "lon": 0,
+      "lat": 8,
+      "frameStart": 0,
+      "frameEnd": 4,
+      "data": {
+        "title": "Bienvenido al río",
+        "description": "Recorrido en lancha de 16 minutos",
+        "action": "Explorar"
+      }
+    },
+    {
+      "id": "tour-precio",
+      "type": "price",
+      "lon": 45,
+      "lat": 5,
+      "frameStart": 3,
+      "frameEnd": 8,
+      "data": {
+        "title": "Tour en lancha",
+        "price": "$350 MXN",
+        "description": "Incluye guía y equipo de seguridad",
+        "action": "Reservar"
+      }
+    },
+    {
+      "id": "agua-turquesa",
+      "type": "info",
+      "lon": -35,
+      "lat": -10,
+      "frameStart": 8,
+      "frameEnd": 13,
+      "data": {
+        "title": "Aguas color turquesa",
+        "description": "Originadas en manantiales de montaña",
+        "action": "Ver más"
+      }
+    },
+    {
+      "id": "flora",
+      "type": "info",
+      "lon": -60,
+      "lat": 10,
+      "frameStart": 13,
+      "frameEnd": 19,
+      "data": {
+        "title": "Flora nativa",
+        "description": "Álamos, fresnos y vegetación de ribera",
+        "action": "Conocer más"
+      }
+    }
+  ]
+}

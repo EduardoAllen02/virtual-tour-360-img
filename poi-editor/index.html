@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>POI Editor — Virtual Tour 360° (Frames)</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #07050f;
+      color: #e0d8ff;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      height: 100dvh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    #header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.6rem 1rem;
+      background: rgba(255,255,255,0.03);
+      border-bottom: 1px solid rgba(120,80,220,0.2);
+      flex-shrink: 0;
+    }
+    #header h1 { font-size: 0.95rem; font-weight: 600; color: #c4b0ff; }
+    .badge {
+      font-size: 0.68rem; padding: 0.2rem 0.55rem;
+      background: rgba(109,40,217,0.3); border-radius: 0.3rem; color: #a78bfa;
+    }
+    .spacer { flex: 1; }
+    .hbtn {
+      padding: 0.4rem 1rem; border-radius: 0.4rem; font-size: 0.8rem;
+      cursor: pointer; border: 1px solid transparent; transition: opacity 0.2s;
+    }
+    .hbtn:hover { opacity: 0.8; }
+    #btn-load-frames {
+      background: rgba(255,255,255,0.07);
+      border-color: rgba(150,100,255,0.3);
+      color: #d0c8ff;
+    }
+    #btn-export {
+      background: linear-gradient(135deg, #7c3aed, #4f1fb3);
+      color: #fff;
+    }
+    #btn-export:disabled { opacity: 0.35; cursor: default; }
+    #input-frames { display: none; }
+
+    /* ── Frame counter badge in header ── */
+    #frame-counter {
+      font-size: 0.75rem;
+      color: rgba(196,176,255,0.55);
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(120,80,200,0.25);
+      border-radius: 0.35rem;
+      padding: 0.25rem 0.6rem;
+      font-variant-numeric: tabular-nums;
+      display: none;
+    }
+
+    /* ── Main ── */
+    #main {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* ── Left: viewer + controls ── */
+    #viewer-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      min-width: 0;
+    }
+
+    #viewer {
+      flex: 1;
+      position: relative;
+      background: #000;
+      cursor: grab;
+      overflow: hidden;
+    }
+    #viewer.dragging { cursor: grabbing; }
+    #viewer canvas {
+      position: absolute; inset: 0;
+      width: 100% !important; height: 100% !important;
+    }
+    #viewer .label-renderer {
+      position: absolute; inset: 0; pointer-events: none;
+    }
+
+    /* Crosshair */
+    #crosshair {
+      position: absolute; inset: 0;
+      pointer-events: none;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #crosshair::before, #crosshair::after {
+      content: ''; position: absolute;
+      background: rgba(167,139,250,0.5);
+    }
+    #crosshair::before { width: 1px; height: 20px; }
+    #crosshair::after  { width: 20px; height: 1px; }
+
+    /* Add POI button */
+    #btn-add-poi {
+      position: absolute;
+      bottom: 1rem; left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      padding: 0.55rem 1.4rem;
+      background: linear-gradient(135deg, #7c3aed, #4f1fb3);
+      border: none; border-radius: 0.5rem;
+      color: #fff; font-size: 0.85rem; font-weight: 600;
+      cursor: pointer; box-shadow: 0 4px 18px rgba(109,40,217,0.5);
+      transition: opacity 0.2s, transform 0.15s;
+    }
+    #btn-add-poi:hover { opacity: 0.88; transform: translateX(-50%) scale(1.04); }
+    #btn-add-poi:disabled { opacity: 0.35; cursor: default; transform: translateX(-50%); }
+
+    /* ── Timeline bar ── */
+    #timeline-bar {
+      height: 72px; padding: 0 1rem;
+      background: rgba(6, 4, 18, 0.92);
+      border-top: 1px solid rgba(110,70,200,0.2);
+      flex-shrink: 0;
+      display: flex; flex-direction: column;
+      justify-content: center; gap: 4px;
+    }
+
+    #tl-info {
+      display: flex; align-items: center; gap: 1rem;
+      font-size: 0.68rem; color: rgba(196,176,255,0.5);
+    }
+    #tl-frame-label {
+      font-variant-numeric: tabular-nums;
+      color: rgba(196,176,255,0.75);
+    }
+    .tl-hint { font-size: 0.62rem; color: rgba(196,176,255,0.3); }
+
+    #tl-track {
+      position: relative; height: 32px; cursor: pointer;
+    }
+    #tl-line {
+      position: absolute; top:50%; left:0; right:0;
+      height: 2px; margin-top: -1px;
+      background: rgba(120,80,200,0.2); border-radius: 2px;
+    }
+    #tl-fill {
+      position: absolute; top:50%; left:0;
+      height: 2px; margin-top:-1px;
+      background: linear-gradient(90deg,#6d28d9,#a78bfa);
+      border-radius: 2px; width: 0%; pointer-events: none;
+    }
+    #tl-ticks {
+      position: absolute; inset:0;
+      width:100%; height:100%; pointer-events: none;
+    }
+    #tl-pois {
+      position: absolute; inset:0; pointer-events: none;
+    }
+    #tl-handle {
+      position: absolute; top:50%; left:0%;
+      width:13px; height:13px; margin-top:-6.5px; margin-left:-6.5px;
+      background:#a78bfa; border:2px solid #fff; border-radius:50%;
+      box-shadow: 0 0 10px rgba(167,139,250,0.7);
+      pointer-events:none; z-index:4;
+    }
+    .poi-marker {
+      position:absolute; top:0; bottom:0;
+      transform:translateX(-50%);
+      display:flex; align-items:center; justify-content:center;
+      pointer-events:all; cursor:pointer; z-index:3;
+    }
+    .poi-circle {
+      width:13px; height:13px; border-radius:50%;
+      border:2px solid #c084fc; background:rgba(192,132,252,0.15);
+      box-shadow: 0 0 6px rgba(192,132,252,0.4);
+    }
+    .poi-label {
+      position:absolute; top:calc(50% + 10px); left:50%;
+      transform:translateX(-50%); white-space:nowrap;
+      font-size:0.58rem; color:rgba(196,176,255,0.75);
+      pointer-events:none;
+    }
+
+    /* ── Right panel ── */
+    #poi-panel {
+      width: 280px; min-width: 280px;
+      background: rgba(255,255,255,0.02);
+      border-left: 1px solid rgba(120,80,200,0.18);
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    }
+    #poi-panel-header {
+      padding: 0.75rem 1rem 0.5rem;
+      border-bottom: 1px solid rgba(120,80,200,0.15);
+      flex-shrink: 0;
+    }
+    #poi-panel-header h2 { font-size: 0.82rem; font-weight: 600; color: #c4b0ff; }
+    #poi-panel-header p  { font-size: 0.7rem; color: rgba(200,190,255,0.45); margin-top:0.15rem; }
+
+    #poi-list { flex: 1; overflow-y: auto; padding: 0.5rem; }
+    #poi-list::-webkit-scrollbar { width: 4px; }
+    #poi-list::-webkit-scrollbar-track { background: transparent; }
+    #poi-list::-webkit-scrollbar-thumb { background: rgba(120,80,200,0.3); border-radius:4px; }
+
+    .poi-item {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(120,80,200,0.2);
+      border-radius: 0.55rem;
+      padding: 0.6rem 0.75rem;
+      margin-bottom: 0.5rem;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .poi-item:hover { border-color: rgba(192,132,252,0.45); }
+    .pi-name {
+      font-size: 0.82rem; font-weight: 600; color: #d0c8ff;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .pi-frame {
+      font-size: 0.68rem; color: rgba(160,140,255,0.65); margin-top: 0.15rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .pi-angle {
+      font-size: 0.63rem; color: rgba(140,120,220,0.5); margin-top: 0.1rem;
+    }
+    .pi-delete {
+      width: 20px; height: 20px; border-radius: 50%;
+      background: rgba(220,60,60,0.15); border: none;
+      color: rgba(255,120,120,0.7); cursor: pointer; font-size: 0.75rem;
+      display: flex; align-items:center; justify-content:center;
+      transition: background 0.15s;
+    }
+    .pi-delete:hover { background: rgba(220,60,60,0.35); }
+
+    .empty-state {
+      text-align: center; padding: 2rem 1rem;
+      color: rgba(180,160,255,0.35); font-size: 0.78rem; line-height: 1.6;
+    }
+
+    /* ── Empty viewer placeholder ── */
+    #viewer-placeholder {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 0.75rem;
+      background: #07050f;
+      z-index: 5;
+      pointer-events: none;
+    }
+    #viewer-placeholder p {
+      color: rgba(196,176,255,0.3);
+      font-size: 0.88rem; text-align: center; line-height: 1.6;
+    }
+    #viewer-placeholder .ph-icon { font-size: 2.5rem; }
+
+    /* ── Modal ── */
+    #modal-overlay {
+      display: none; position: fixed; inset: 0; z-index: 100;
+      background: rgba(0,0,0,0.7);
+      align-items: center; justify-content: center;
+    }
+    #modal-overlay.open { display: flex; }
+    .modal-box {
+      background: #13103a;
+      border: 1px solid rgba(140,90,255,0.4);
+      border-radius: 0.9rem;
+      padding: 1.5rem; width: 320px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    }
+    .modal-box h3 { font-size: 1rem; margin-bottom: 1rem; color: #c4b0ff; }
+    .modal-box label {
+      display: block; font-size: 0.75rem;
+      color: rgba(200,190,255,0.6); margin-bottom: 0.25rem;
+    }
+    .modal-box input, .modal-box textarea {
+      width: 100%; background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(120,80,200,0.3);
+      border-radius: 0.4rem; padding: 0.45rem 0.6rem;
+      color: #e0d8ff; font-size: 0.85rem; margin-bottom: 0.75rem;
+      outline: none; resize: none;
+    }
+    .modal-box input:focus, .modal-box textarea:focus {
+      border-color: rgba(167,139,250,0.6);
+    }
+    .modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
+    .mbtn {
+      padding: 0.45rem 1.1rem; border-radius: 0.4rem;
+      font-size: 0.82rem; cursor: pointer; border: none; transition: opacity 0.2s;
+    }
+    .mbtn:hover { opacity: 0.85; }
+    #modal-cancel { background: rgba(255,255,255,0.07); color: #c4b0ff; }
+    #modal-save   { background: linear-gradient(135deg,#7c3aed,#4f1fb3); color:#fff; }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<div id="header">
+  <h1>POI Editor</h1>
+  <span class="badge">Frames 360°</span>
+  <div class="spacer"></div>
+  <span id="frame-counter">—</span>
+  <label class="hbtn" id="btn-load-frames">
+    📂 Cargar frames
+    <input id="input-frames" type="file" accept="image/*" multiple>
+  </label>
+  <button class="hbtn" id="btn-export" disabled>Exportar JSON</button>
+</div>
+
+<!-- Main -->
+<div id="main">
+
+  <!-- Left: viewer + timeline -->
+  <div id="viewer-panel">
+    <div id="viewer">
+      <div id="viewer-placeholder">
+        <span class="ph-icon">🖼️</span>
+        <p>Carga los frames con el botón de arriba<br>
+           Selecciona todas las imágenes de la carpeta <code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:3px">frames/</code></p>
+      </div>
+      <div id="crosshair"></div>
+      <button id="btn-add-poi" disabled>📍 Agregar POI aquí</button>
+    </div>
+    <div id="timeline-bar">
+      <div id="tl-info">
+        <span id="tl-frame-label">Sin frames</span>
+        <span class="tl-hint">← → navegar · clic en track para saltar</span>
+      </div>
+      <div id="tl-track">
+        <div id="tl-line"></div>
+        <div id="tl-fill"></div>
+        <canvas id="tl-ticks"></canvas>
+        <div id="tl-pois"></div>
+        <div id="tl-handle"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: POI list -->
+  <div id="poi-panel">
+    <div id="poi-panel-header">
+      <h2>Puntos de Interés</h2>
+      <p>Navega al frame y presiona "Agregar POI"</p>
+    </div>
+    <div id="poi-list">
+      <div class="empty-state">Ningún POI todavía.<br>Carga los frames para empezar.</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Modal -->
+<div id="modal-overlay">
+  <div class="modal-box">
+    <h3>Nuevo Punto de Interés</h3>
+    <label>Nombre *</label>
+    <input id="poi-name" type="text" placeholder="Ej: Sala Principal">
+    <label>Descripción (opcional)</label>
+    <textarea id="poi-desc" rows="2" placeholder="Breve descripción..."></textarea>
+    <div class="modal-actions">
+      <button class="mbtn" id="modal-cancel">Cancelar</button>
+      <button class="mbtn" id="modal-save">Guardar POI</button>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three":          "https://unpkg.com/three@0.163.0/build/three.module.js",
+    "three/addons/":  "https://unpkg.com/three@0.163.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
+
+// ── State ────────────────────────────────────────────
+const pois       = [];
+let imageFiles   = [];   // sorted File[]
+let objectURLs   = [];   // blob URLs, same order
+let currentIdx   = 0;
+let lon = 0, lat = 0, fov = 75;
+let isDragging = false, dragX = 0, dragY = 0;
+let scrubbing  = false;
+let pendingPOI = null;
+
+const textureCache = new Map(); // idx → THREE.Texture
+const loader = new THREE.TextureLoader();
+
+// ── DOM ──────────────────────────────────────────────
+const viewerEl       = document.getElementById('viewer');
+const placeholder    = document.getElementById('viewer-placeholder');
+const inputFrames    = document.getElementById('input-frames');
+const btnAddPOI      = document.getElementById('btn-add-poi');
+const btnExport      = document.getElementById('btn-export');
+const frameCounter   = document.getElementById('frame-counter');
+const poiList        = document.getElementById('poi-list');
+const ticks          = document.getElementById('tl-ticks');
+const fill           = document.getElementById('tl-fill');
+const handle         = document.getElementById('tl-handle');
+const track          = document.getElementById('tl-track');
+const poiLayer       = document.getElementById('tl-pois');
+const tlFrameLabel   = document.getElementById('tl-frame-label');
+const modalOv        = document.getElementById('modal-overlay');
+const poiNameIn      = document.getElementById('poi-name');
+const poiDescIn      = document.getElementById('poi-desc');
+
+// ── Three.js ─────────────────────────────────────────
+const renderer3 = new THREE.WebGLRenderer({ antialias: true });
+renderer3.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+viewerEl.insertBefore(renderer3.domElement, viewerEl.firstChild);
+
+const labelRenderer = new CSS2DRenderer();
+labelRenderer.domElement.className = 'label-renderer';
+viewerEl.appendChild(labelRenderer.domElement);
+
+const scene  = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1100);
+
+const sphereGeo = new THREE.SphereGeometry(500, 64, 32);
+sphereGeo.scale(-1, 1, 1);
+const sphereMat = new THREE.MeshBasicMaterial({ color: 0x111122 });
+const sphere    = new THREE.Mesh(sphereGeo, sphereMat);
+scene.add(sphere);
+
+// ── Camera helpers ────────────────────────────────────
+function updateCamera() {
+  const lonRad = THREE.MathUtils.degToRad(lon);
+  const latRad = THREE.MathUtils.degToRad(lat);
+  camera.lookAt(
+    Math.cos(latRad) * Math.sin(lonRad),
+    Math.sin(latRad),
+    Math.cos(latRad) * Math.cos(lonRad)
+  );
+}
+function getCurrentLonLat() { return { lon, lat }; }
+
+// ── Drag ─────────────────────────────────────────────
+renderer3.domElement.addEventListener('pointerdown', e => {
+  isDragging = true; dragX = e.clientX; dragY = e.clientY;
+  viewerEl.classList.add('dragging');
+});
+document.addEventListener('pointermove', e => {
+  if (!isDragging) return;
+  lon -= (e.clientX - dragX) * 0.18;
+  lat  = Math.max(-85, Math.min(85, lat + (e.clientY - dragY) * 0.18));
+  dragX = e.clientX; dragY = e.clientY;
+  updateCamera();
+});
+document.addEventListener('pointerup', () => {
+  isDragging = false; viewerEl.classList.remove('dragging');
+});
+renderer3.domElement.addEventListener('wheel', e => {
+  e.preventDefault();
+  fov = THREE.MathUtils.clamp(fov + e.deltaY * 0.04, 30, 100);
+  camera.fov = fov; camera.updateProjectionMatrix();
+}, { passive: false });
+
+// ── Keyboard navigation ───────────────────────────────
+document.addEventListener('keydown', e => {
+  if (!imageFiles.length || modalOv.classList.contains('open')) return;
+  if (e.key === 'ArrowRight') goToFrame(currentIdx + 1);
+  if (e.key === 'ArrowLeft')  goToFrame(currentIdx - 1);
+});
+
+// ── Resize ────────────────────────────────────────────
+function onResize() {
+  const w = viewerEl.clientWidth, h = viewerEl.clientHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer3.setSize(w, h);
+  labelRenderer.setSize(w, h);
+  if (imageFiles.length) drawTicks();
+}
+window.addEventListener('resize', onResize);
+onResize();
+
+// ── Render loop ───────────────────────────────────────
+function animate() {
+  requestAnimationFrame(animate);
+  updateCamera();
+  renderer3.render(scene, camera);
+  labelRenderer.render(scene, camera);
+}
+animate();
+
+// ── Texture loading ───────────────────────────────────
+function getTexture(idx) {
+  if (textureCache.has(idx)) return Promise.resolve(textureCache.get(idx));
+  if (idx < 0 || idx >= objectURLs.length) return Promise.reject('oob');
+  return new Promise((resolve, reject) => {
+    loader.load(
+      objectURLs[idx],
+      tex => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.minFilter  = THREE.LinearFilter;
+        textureCache.set(idx, tex);
+        resolve(tex);
+      },
+      undefined, reject
+    );
+  });
+}
+
+function preload(idx) {
+  for (let i = idx - 2; i <= idx + 3; i++) {
+    if (i >= 0 && i < objectURLs.length && !textureCache.has(i)) {
+      getTexture(i).catch(() => {});
+    }
+  }
+  // Evict distant textures
+  for (const [key, tex] of textureCache) {
+    if (Math.abs(key - idx) > 8) { tex.dispose(); textureCache.delete(key); }
+  }
+}
+
+// ── Frame navigation ──────────────────────────────────
+function goToFrame(idx) {
+  if (!imageFiles.length) return;
+  idx = Math.max(0, Math.min(imageFiles.length - 1, idx));
+  currentIdx = idx;
+
+  getTexture(idx).then(tex => {
+    sphere.material = new THREE.MeshBasicMaterial({ map: tex });
+    preload(idx);
+  }).catch(() => {});
+
+  syncScrubber(idx);
+  tlFrameLabel.textContent = `Frame ${idx + 1} / ${imageFiles.length}  —  ${imageFiles[idx].name}`;
+}
+
+function syncScrubber(idx) {
+  const total = imageFiles.length;
+  if (!total || total <= 1) return;
+  const pct = idx / (total - 1);
+  fill.style.width  = (pct * 100) + '%';
+  handle.style.left = (pct * 100) + '%';
+}
+
+// ── Load frames (file input) ──────────────────────────
+inputFrames.addEventListener('change', e => {
+  const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
+  if (!files.length) return;
+
+  // Release old blob URLs
+  objectURLs.forEach(u => URL.revokeObjectURL(u));
+  textureCache.forEach(t => t.dispose());
+  textureCache.clear();
+  pois.length = 0;
+
+  // Sort by filename (natural sort)
+  imageFiles = files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  objectURLs = imageFiles.map(f => URL.createObjectURL(f));
+
+  // Show controls
+  placeholder.style.display = 'none';
+  btnAddPOI.disabled  = false;
+  btnExport.disabled  = false;
+  frameCounter.style.display = 'inline';
+  frameCounter.textContent   = `${imageFiles.length} frames`;
+
+  drawTicks();
+  refreshPOIMarkers();
+  refreshPOIList();
+  goToFrame(0);
+});
+
+// ── Timeline ──────────────────────────────────────────
+function drawTicks() {
+  const total = imageFiles.length;
+  const dpr = window.devicePixelRatio || 1;
+  const w = ticks.offsetWidth, h = ticks.offsetHeight;
+  ticks.width = w * dpr; ticks.height = h * dpr;
+  const ctx = ticks.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+  const cy = h / 2;
+
+  const micro = Math.max(1, Math.ceil(total / 120));
+  const minor = Math.max(5, Math.ceil(total / 20));
+  const major = Math.max(10, Math.ceil(total / 5));
+
+  for (let i = 0; i <= total - 1; i += micro) {
+    const x = (i / Math.max(1, total - 1)) * w;
+    let th = 4, alpha = 0.28, lw = 0.8;
+    if (i % major === 0) { th = 14; alpha = 0.75; lw = 1.5; }
+    else if (i % minor === 0) { th = 8; alpha = 0.5; lw = 1; }
+    ctx.strokeStyle = `rgba(170,140,255,${alpha})`;
+    ctx.lineWidth = lw;
+    ctx.beginPath();
+    ctx.moveTo(x, cy - th/2);
+    ctx.lineTo(x, cy + th/2);
+    ctx.stroke();
+  }
+}
+
+function pctFromEvt(e) {
+  const r = track.getBoundingClientRect();
+  return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+}
+
+track.addEventListener('mousedown', e => {
+  if (!imageFiles.length) return;
+  scrubbing = true;
+  goToFrame(Math.round(pctFromEvt(e) * (imageFiles.length - 1)));
+});
+document.addEventListener('mousemove', e => {
+  if (!scrubbing || !imageFiles.length) return;
+  goToFrame(Math.round(pctFromEvt(e) * (imageFiles.length - 1)));
+});
+document.addEventListener('mouseup', () => { scrubbing = false; });
+
+// ── Add POI ───────────────────────────────────────────
+btnAddPOI.addEventListener('click', () => {
+  if (!imageFiles.length) return;
+  const { lon: camLon, lat: camLat } = getCurrentLonLat();
+  pendingPOI = {
+    frame: currentIdx,
+    cameraAngle: {
+      lon: parseFloat(camLon.toFixed(1)),
+      lat: parseFloat(camLat.toFixed(1))
+    }
+  };
+  poiNameIn.value = '';
+  poiDescIn.value = '';
+  modalOv.classList.add('open');
+  setTimeout(() => poiNameIn.focus(), 50);
+});
+
+document.getElementById('modal-cancel').addEventListener('click', () => {
+  modalOv.classList.remove('open');
+  pendingPOI = null;
+});
+document.getElementById('modal-save').addEventListener('click', savePOI);
+poiNameIn.addEventListener('keydown', e => { if (e.key === 'Enter') savePOI(); });
+
+function savePOI() {
+  const name = poiNameIn.value.trim();
+  if (!name) { poiNameIn.focus(); return; }
+  const poi = {
+    id:          name.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(),
+    label:       name,
+    description: poiDescIn.value.trim(),
+    frame:       pendingPOI.frame,
+    cameraAngle: pendingPOI.cameraAngle
+  };
+  pois.push(poi);
+  pois.sort((a, b) => a.frame - b.frame);
+  modalOv.classList.remove('open');
+  pendingPOI = null;
+  refreshPOIList();
+  refreshPOIMarkers();
+}
+
+// ── POI list ──────────────────────────────────────────
+function refreshPOIList() {
+  if (!pois.length) {
+    poiList.innerHTML = '<div class="empty-state">Ningún POI todavía.<br>Navega al frame y presiona Agregar.</div>';
+    return;
+  }
+  poiList.innerHTML = '';
+  pois.forEach((poi, i) => {
+    const item = document.createElement('div');
+    item.className = 'poi-item';
+    item.innerHTML = `
+      <div class="pi-name">
+        <span>${poi.label}</span>
+        <button class="pi-delete" data-i="${i}" title="Eliminar">✕</button>
+      </div>
+      <div class="pi-frame">🖼 Frame ${poi.frame + 1}${imageFiles[poi.frame] ? ' — ' + imageFiles[poi.frame].name : ''}</div>
+      <div class="pi-angle">📷 lon ${poi.cameraAngle.lon}° · lat ${poi.cameraAngle.lat}°</div>
+      ${poi.description ? `<div style="font-size:0.68rem;color:rgba(200,190,255,0.5);margin-top:0.2rem">${poi.description}</div>` : ''}
+    `;
+    item.addEventListener('click', e => {
+      if (e.target.closest('.pi-delete')) return;
+      goToFrame(poi.frame);
+    });
+    item.querySelector('.pi-delete').addEventListener('click', () => {
+      pois.splice(i, 1);
+      refreshPOIList();
+      refreshPOIMarkers();
+    });
+    poiList.appendChild(item);
+  });
+}
+
+// ── POI markers on timeline ───────────────────────────
+function refreshPOIMarkers() {
+  poiLayer.innerHTML = '';
+  if (!imageFiles.length) return;
+  const total = imageFiles.length;
+  pois.forEach(poi => {
+    const pct = (poi.frame / Math.max(1, total - 1)) * 100;
+    const m = document.createElement('div');
+    m.className = 'poi-marker';
+    m.style.left = pct + '%';
+    m.title = poi.label;
+    m.innerHTML = `<div class="poi-circle"></div><span class="poi-label">${poi.label}</span>`;
+    m.addEventListener('click', e => { e.stopPropagation(); goToFrame(poi.frame); });
+    poiLayer.appendChild(m);
+  });
+}
+
+// ── Export JSON ───────────────────────────────────────
+btnExport.addEventListener('click', () => {
+  const framesList = imageFiles.map(f => 'frames/' + f.name);
+  const out = {
+    title: "Virtual Tour — Frames",
+    frames: framesList,
+    pois: pois.map(p => ({
+      id:          p.id,
+      label:       p.label,
+      description: p.description || undefined,
+      frame:       p.frame,
+      cameraAngle: p.cameraAngle
+    })),
+    overlays: []
+  };
+  const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'tour-config.json';
+  a.click();
+});
+</script>
+</body>
+</html>

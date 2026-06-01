@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Virtual Tour 360° — Frames</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+
+    <!-- 360° viewer -->
+    <div id="viewer">
+      <div id="file-picker">
+        <div class="picker-box">
+          <h2>Virtual Tour 360°</h2>
+          <p>Coloca los frames en la carpeta <code>frames/</code><br>
+             y configura <code>tour-config.json</code></p>
+          <p class="picker-hint">← → para navegar frame a frame</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating timeline -->
+    <div id="timeline-bar">
+      <div id="tl-counter">—</div>
+      <div id="tl-track">
+        <div id="tl-line"></div>
+        <div id="tl-fill"></div>
+        <canvas id="tl-ticks"></canvas>
+        <div id="tl-pois"></div>
+        <div id="tl-handle"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three":          "https://unpkg.com/three@0.163.0/build/three.module.js",
+      "three/addons/":  "https://unpkg.com/three@0.163.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module" src="viewer.js"></script>
+</body>
+</html>
