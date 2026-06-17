@@ -121,12 +121,13 @@ function animate() {
   labelRenderer.render(scene, camera);
 }
 
-// ── Full parallel preload (all frames → HTTP cache) ───────────
-async function prefetchAllParallel(onProgress) {
-  const BATCH = 30;  // concurrent HTTP requests per batch
+// ── Parallel preload range (startIdx → endIdx, HTTP + SW cache) ──
+async function prefetchRange(startIdx, endIdx, onProgress) {
+  const BATCH = 30;
   let done = 0;
-  for (let i = 0; i < frames.length; i += BATCH) {
-    const end   = Math.min(i + BATCH, frames.length);
+  const total = endIdx - startIdx;
+  for (let i = startIdx; i < endIdx; i += BATCH) {
+    const end   = Math.min(i + BATCH, endIdx);
     const batch = [];
     for (let j = i; j < end; j++) batch.push(j);
 
@@ -140,7 +141,7 @@ async function prefetchAllParallel(onProgress) {
       })
     ));
     done += batch.length;
-    if (onProgress) onProgress(done / frames.length);
+    if (onProgress) onProgress(done / total);
   }
 }
 
@@ -208,6 +209,11 @@ export function goToFrame(idx) {
 async function init() {
   onResize();
 
+  // Register Service Worker for persistent frame caching
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  }
+
   try {
     const res    = await fetch(CONFIG_PATH);
     const config = await res.json();
@@ -217,11 +223,6 @@ async function init() {
     );
     if (!frames.length) throw new Error('no frames');
 
-    // Update loading screen to show frame count
-    const loaderTitle = document.getElementById('loader-title');
-    if (loaderTitle) loaderTitle.textContent = `Caricamento ${frames.length} frame...`;
-
-    // Full parallel preload — ALL frames before showing tour
     const fillEl = document.getElementById('loader-fill');
     const pctEl  = document.getElementById('loader-pct');
     function updateLoadUI(ratio) {
@@ -230,20 +231,24 @@ async function init() {
       if (pctEl)  pctEl.textContent  = p + '%';
     }
 
-    await prefetchAllParallel(updateLoadUI);
+    // Phase 1: preload first 40% — user waits for this
+    const phase1End = Math.ceil(frames.length * 0.4);
+    await prefetchRange(0, phase1End, updateLoadUI);
 
-    // All frames in HTTP cache — start tour
+    // Tour is ready — show it
     initTimeline(frames.length, config.pois || [], goToFrame, animateCameraTo);
     initOverlays(scene, config.overlays || []);
     initHotspots(scene, config.hotspots || []);
 
-    // Smooth fade-out of loading screen
     if (filePicker) {
       filePicker.style.transition = 'opacity 0.5s ease';
       filePicker.style.opacity = '0';
       setTimeout(() => { filePicker.style.display = 'none'; }, 520);
     }
     goToFrame(0);
+
+    // Phase 2: load remaining 60% silently in background
+    prefetchRange(phase1End, frames.length, null).catch(() => {});
 
   } catch {
     initTimeline(0, [], goToFrame, animateCameraTo);

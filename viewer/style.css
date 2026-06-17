@@ -58,14 +58,6 @@ body {
 }
 
 /* ── Loading Screen ── */
-.loader-brand {
-  color: rgba(255,255,255,0.28);
-  font-size: 0.60rem;
-  font-weight: 700;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  margin-bottom: 22px;
-}
 .loader-title {
   color: rgba(255,255,255,0.88);
   font-size: 0.95rem;
