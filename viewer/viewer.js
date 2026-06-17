@@ -4,7 +4,7 @@ import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { initTimeline } from './timeline.js';
 import { initOverlays, updateOverlays } from './overlays.js';
 import { initHotspots, updateHotspots, closeHotspotPanel } from './hotspots.js';
-import { setLang } from './lang.js';
+import { setLang, getLang } from './lang.js';
 
 const CONFIG_PATH = '../tour-config.json';
 
@@ -35,7 +35,7 @@ labelRenderer.domElement.style.pointerEvents = 'none';
 viewerEl.appendChild(labelRenderer.domElement);
 
 const scene  = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1100);
+const camera = new THREE.PerspectiveCamera(100, 1, 0.1, 1100);
 
 const sphereGeo = new THREE.SphereGeometry(500, 64, 32);
 sphereGeo.scale(-1, 1, 1);
@@ -44,7 +44,7 @@ const sphere    = new THREE.Mesh(sphereGeo, sphereMat);
 scene.add(sphere);
 
 // ── Camera Control ────────────────────────────────────────────
-let lon = 0, lat = 0, fov = 75;
+let lon = 0, lat = 0, fov = 100;
 let isDragging = false, dragX = 0, dragY = 0;
 
 function updateCamera() {
@@ -223,17 +223,18 @@ async function init() {
     );
     if (!frames.length) throw new Error('no frames');
 
-    const fillEl = document.getElementById('loader-fill');
-    const pctEl  = document.getElementById('loader-pct');
-    function updateLoadUI(ratio) {
-      const p = Math.min(100, Math.round(ratio * 100));
-      if (fillEl) fillEl.style.width = p + '%';
-      if (pctEl)  pctEl.textContent  = p + '%';
+    // Loader text reacts to IT/EN toggle
+    const loaderTitleEl = document.getElementById('loader-title');
+    function syncLoaderText() {
+      if (!loaderTitleEl) return;
+      loaderTitleEl.textContent = getLang() === 'en' ? 'Loading...' : 'Caricamento...';
     }
+    syncLoaderText();
+    document.addEventListener('langchange', syncLoaderText);
 
-    // Phase 1: preload first 40% — user waits for this
-    const phase1End = Math.ceil(frames.length * 0.4);
-    await prefetchRange(0, phase1End, updateLoadUI);
+    // Phase 1: preload first 60% — user waits for this
+    const phase1End = Math.ceil(frames.length * 0.6);
+    await prefetchRange(0, phase1End, null);
 
     // Tour is ready — show it
     initTimeline(frames.length, config.pois || [], goToFrame, animateCameraTo);
