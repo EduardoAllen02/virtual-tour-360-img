@@ -211,7 +211,7 @@ async function init() {
 
   // Register Service Worker for persistent frame caching
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('../sw.js', { scope: '../' }).catch(() => {});
+    navigator.serviceWorker.register('../sw.js').catch(() => {});
   }
 
   try {
