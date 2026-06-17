@@ -1,4 +1,4 @@
-// viewer.js — Image-based 360° viewer with lazy loading for 900+ frames
+// viewer.js — Image-based 360° viewer with full preload
 import * as THREE from 'three';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { initTimeline } from './timeline.js';
@@ -8,42 +8,21 @@ import { setLang } from './lang.js';
 
 const CONFIG_PATH = '../tour-config.json';
 
-// ── Lazy Loading Config ────────────────────────────────────────
-const INITIAL_PREFETCH = 50;  // HTTP-prefetch on startup before showing tour
-const AHEAD_PREFETCH   = 20;  // HTTP-prefetch window ahead of current
-const BEHIND_PREFETCH  = 10;  // HTTP-prefetch window behind current
-const CHUNK_SIZE       = 40;  // frames per background idle chunk
-const TEX_AHEAD        = 5;   // THREE.Texture preload ahead (GPU)
-const TEX_BEHIND       = 2;   // THREE.Texture keep behind (GPU)
-const MAX_TEX_CACHE    = 20;  // max GPU textures in memory
+// GPU texture cache config (HTTP cache is handled by full preload)
+const TEX_AHEAD    = 5;
+const TEX_BEHIND   = 2;
+const MAX_TEX_CACHE = 20;
 
 // ── State ─────────────────────────────────────────────────────
-let frames     = [];
-let currentIdx = 0;
-const textureCache   = new Map();  // idx → THREE.Texture (GPU)
-const httpPrefetched = new Set();  // idx → already HTTP-fetched
-let   bgQueue        = [];         // background prefetch queue
-let   bgActive       = false;
+let frames      = [];
+let currentIdx  = 0;
+let _seekTarget = -1;  // tracks latest seek to discard stale texture loads
+const textureCache   = new Map();
+const httpPrefetched = new Set();
 
 // ── DOM ───────────────────────────────────────────────────────
 const viewerEl   = document.getElementById('viewer');
 const filePicker = document.getElementById('file-picker');
-
-// ── Loading bar ───────────────────────────────────────────────
-const loadBar = document.createElement('div');
-loadBar.id = 'lazy-load-bar';
-Object.assign(loadBar.style, {
-  position: 'fixed', bottom: '0', left: '0', height: '3px',
-  background: 'linear-gradient(90deg,#6366f1,#8b5cf6)',
-  width: '0%', zIndex: '9999', transition: 'width 0.3s ease',
-  pointerEvents: 'none',
-});
-document.body.appendChild(loadBar);
-
-function setLoadBar(pct) {
-  loadBar.style.width = pct + '%';
-  if (pct >= 100) setTimeout(() => { loadBar.style.opacity = '0'; }, 600);
-}
 
 // ── Three.js Setup ────────────────────────────────────────────
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -142,62 +121,26 @@ function animate() {
   labelRenderer.render(scene, camera);
 }
 
-// ── HTTP Prefetch (browser cache, no GPU) ─────────────────────
-function prefetchHTTP(idx) {
-  if (httpPrefetched.has(idx) || idx < 0 || idx >= frames.length) return;
-  httpPrefetched.add(idx);
-  const img = new Image();
-  img.src = frames[idx];
-}
+// ── Full parallel preload (all frames → HTTP cache) ───────────
+async function prefetchAllParallel(onProgress) {
+  const BATCH = 30;  // concurrent HTTP requests per batch
+  let done = 0;
+  for (let i = 0; i < frames.length; i += BATCH) {
+    const end   = Math.min(i + BATCH, frames.length);
+    const batch = [];
+    for (let j = i; j < end; j++) batch.push(j);
 
-function prefetchWindow(centerIdx) {
-  const start = Math.max(0, centerIdx - BEHIND_PREFETCH);
-  const end   = Math.min(frames.length - 1, centerIdx + AHEAD_PREFETCH);
-  for (let i = start; i <= end; i++) prefetchHTTP(i);
-}
-
-// ── Background idle loader ────────────────────────────────────
-function scheduleBackground(fromIdx) {
-  bgQueue = [];
-  for (let i = fromIdx; i < frames.length; i++) {
-    if (!httpPrefetched.has(i)) bgQueue.push(i);
-  }
-  if (!bgActive) processBackground();
-}
-
-function processBackground() {
-  if (!bgQueue.length) { bgActive = false; return; }
-  bgActive = true;
-
-  const work = (deadline) => {
-    let processed = 0;
-    const hasTime = deadline
-      ? () => deadline.timeRemaining() > 10
-      : () => processed < CHUNK_SIZE;
-
-    while (bgQueue.length && hasTime()) {
-      prefetchHTTP(bgQueue.shift());
-      processed++;
-    }
-
-    const pct = Math.round((httpPrefetched.size / frames.length) * 100);
-    setLoadBar(Math.min(pct, 99));
-
-    if (bgQueue.length) {
-      const schedule = 'requestIdleCallback' in window
-        ? (fn) => requestIdleCallback(fn, { timeout: 4000 })
-        : (fn) => setTimeout(fn, 150);
-      schedule(work);
-    } else {
-      bgActive = false;
-      setLoadBar(100);
-    }
-  };
-
-  if ('requestIdleCallback' in window) {
-    requestIdleCallback(work, { timeout: 4000 });
-  } else {
-    setTimeout(() => work(null), 500);
+    await Promise.all(batch.map(j =>
+      new Promise(resolve => {
+        if (httpPrefetched.has(j)) { resolve(); return; }
+        httpPrefetched.add(j);
+        const img = new Image();
+        img.onload = img.onerror = () => resolve();
+        img.src = frames[j];
+      })
+    ));
+    done += batch.length;
+    if (onProgress) onProgress(done / frames.length);
   }
 }
 
@@ -246,17 +189,18 @@ function preloadGPU(centerIdx) {
 export function goToFrame(idx) {
   if (!frames.length) return;
   idx = Math.max(0, Math.min(frames.length - 1, idx));
-  currentIdx = idx;
+  currentIdx  = idx;
+  _seekTarget = idx;
 
+  // Update timeline position immediately — don't wait for texture
+  if (window._timelineOnFrame) window._timelineOnFrame(idx);
+
+  const myTarget = idx;
   loadTexture(idx).then(tex => {
+    // Discard if user has already seeked to a different frame
+    if (_seekTarget !== myTarget) return;
     sphere.material = new THREE.MeshBasicMaterial({ map: tex });
     preloadGPU(idx);
-    prefetchWindow(idx);
-    // On big jumps: rebuild background queue from new position
-    if (bgQueue.length && Math.abs(bgQueue[0] - idx) > CHUNK_SIZE * 2) {
-      scheduleBackground(idx + AHEAD_PREFETCH);
-    }
-    if (window._timelineOnFrame) window._timelineOnFrame(idx);
   }).catch(() => {});
 }
 
@@ -265,7 +209,7 @@ async function init() {
   onResize();
 
   try {
-    const res = await fetch(CONFIG_PATH);
+    const res    = await fetch(CONFIG_PATH);
     const config = await res.json();
 
     frames = (config.frames || []).map(f =>
@@ -273,24 +217,38 @@ async function init() {
     );
     if (!frames.length) throw new Error('no frames');
 
-    // Phase 1: HTTP-prefetch first INITIAL_PREFETCH frames, show bar
-    setLoadBar(2);
-    const initEnd = Math.min(INITIAL_PREFETCH, frames.length);
-    for (let i = 0; i < initEnd; i++) prefetchHTTP(i);
-    setLoadBar(Math.round((initEnd / frames.length) * 100));
+    // Update loading screen to show frame count
+    const loaderTitle = document.getElementById('loader-title');
+    if (loaderTitle) loaderTitle.textContent = `Caricamento ${frames.length} frame...`;
 
+    // Full parallel preload — ALL frames before showing tour
+    const fillEl = document.getElementById('loader-fill');
+    const pctEl  = document.getElementById('loader-pct');
+    function updateLoadUI(ratio) {
+      const p = Math.min(100, Math.round(ratio * 100));
+      if (fillEl) fillEl.style.width = p + '%';
+      if (pctEl)  pctEl.textContent  = p + '%';
+    }
+
+    await prefetchAllParallel(updateLoadUI);
+
+    // All frames in HTTP cache — start tour
     initTimeline(frames.length, config.pois || [], goToFrame, animateCameraTo);
     initOverlays(scene, config.overlays || []);
     initHotspots(scene, config.hotspots || []);
-    filePicker.style.display = 'none';
-    goToFrame(0);
 
-    // Phase 2: Background idle load for remaining frames
-    scheduleBackground(initEnd);
+    // Smooth fade-out of loading screen
+    if (filePicker) {
+      filePicker.style.transition = 'opacity 0.5s ease';
+      filePicker.style.opacity = '0';
+      setTimeout(() => { filePicker.style.display = 'none'; }, 520);
+    }
+    goToFrame(0);
 
   } catch {
     initTimeline(0, [], goToFrame, animateCameraTo);
     initOverlays(scene, []);
+    if (filePicker) filePicker.style.display = 'none';
   }
 
   animate();

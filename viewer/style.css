@@ -50,37 +50,49 @@ body {
 
 .picker-box {
   text-align: center;
-  padding: 2.5rem 3rem;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 1.4rem;
-  max-width: 380px;
+  padding: 2.8rem 3.2rem;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 1.6rem;
+  min-width: 300px;
 }
 
-.picker-box h2 {
-  font-size: 1.3rem;
-  font-weight: 600;
-  color: #fff;
-  margin-bottom: 0.5rem;
+/* ── Loading Screen ── */
+.loader-brand {
+  color: rgba(255,255,255,0.28);
+  font-size: 0.60rem;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  margin-bottom: 22px;
+}
+.loader-title {
+  color: rgba(255,255,255,0.88);
+  font-size: 0.95rem;
+  font-weight: 500;
+  margin-bottom: 26px;
   letter-spacing: -0.01em;
 }
-.picker-box p {
-  font-size: 0.88rem;
-  color: rgba(255,255,255,0.45);
-  margin-bottom: 0.6rem;
-  line-height: 1.5;
+.loader-track {
+  width: 228px;
+  height: 3px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 99px;
+  margin: 0 auto 14px;
+  overflow: hidden;
 }
-.picker-box code {
-  background: rgba(255,255,255,0.1);
-  padding: 1px 5px;
-  border-radius: 4px;
-  font-size: 0.82rem;
-  color: rgba(255,255,255,0.7);
+.loader-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #16bac2, #2563eb);
+  border-radius: 99px;
+  width: 0%;
+  transition: width 0.12s ease;
 }
-.picker-hint {
-  font-size: 0.78rem !important;
-  color: rgba(255,255,255,0.3) !important;
-  margin-top: 0.8rem !important;
+.loader-pct {
+  color: rgba(255,255,255,0.32);
+  font-size: 0.70rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
 }
 
 /* ── Floating Timeline Bar ── */
