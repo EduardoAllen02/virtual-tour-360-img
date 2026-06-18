@@ -45,7 +45,8 @@ scene.add(sphere);
 
 // ── Camera Control ────────────────────────────────────────────
 let lon = 0, lat = 0, fov = 100;
-let isDragging = false, dragX = 0, dragY = 0;
+const _ptrs      = new Map();  // active pointers: id → {x, y}
+let   _pinchDist = 0;
 
 function updateCamera() {
   const lonRad = THREE.MathUtils.degToRad(lon);
@@ -75,19 +76,42 @@ export function animateCameraTo(targetLon, targetLat, duration = 700) {
 }
 
 renderer.domElement.addEventListener('pointerdown', e => {
-  isDragging = true; dragX = e.clientX; dragY = e.clientY;
+  e.preventDefault();
+  _ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  renderer.domElement.setPointerCapture(e.pointerId);
   viewerEl.classList.add('dragging');
+}, { passive: false });
+
+renderer.domElement.addEventListener('pointermove', e => {
+  if (!_ptrs.has(e.pointerId)) return;
+  const prev = _ptrs.get(e.pointerId);
+  _ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+  if (_ptrs.size === 1) {
+    // Single pointer — rotate sphere
+    lon += (e.clientX - prev.x) * 0.18;
+    lat  = Math.max(-85, Math.min(85, lat + (e.clientY - prev.y) * 0.18));
+    updateCamera();
+  } else if (_ptrs.size === 2) {
+    // Two pointers — pinch zoom
+    const [a, b] = [..._ptrs.values()];
+    const dist = Math.hypot(a.x - b.x, a.y - b.y);
+    if (_pinchDist > 0) {
+      fov = THREE.MathUtils.clamp(fov + (_pinchDist - dist) * 0.15, 30, 100);
+      camera.fov = fov;
+      camera.updateProjectionMatrix();
+    }
+    _pinchDist = dist;
+  }
 });
-document.addEventListener('pointermove', e => {
-  if (!isDragging) return;
-  lon += (e.clientX - dragX) * 0.18;
-  lat  = Math.max(-85, Math.min(85, lat + (e.clientY - dragY) * 0.18));
-  dragX = e.clientX; dragY = e.clientY;
-  updateCamera();
-});
-document.addEventListener('pointerup', () => {
-  isDragging = false; viewerEl.classList.remove('dragging');
-});
+
+const _stopPointer = e => {
+  _ptrs.delete(e.pointerId);
+  if (_ptrs.size < 2) _pinchDist = 0;
+  if (_ptrs.size === 0) viewerEl.classList.remove('dragging');
+};
+renderer.domElement.addEventListener('pointerup',     _stopPointer);
+renderer.domElement.addEventListener('pointercancel', _stopPointer);
 
 renderer.domElement.addEventListener('wheel', e => {
   e.preventDefault();

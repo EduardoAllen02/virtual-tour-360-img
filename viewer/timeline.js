@@ -69,8 +69,16 @@ export function initTimeline(totalFrames, pois, goToFrame, onPOIClick) {
   document.addEventListener('mousemove', e => { if (!_isDragging) return; seekToPct(pctFromEvent(e)); });
   document.addEventListener('mouseup', () => { _isDragging = false; });
 
-  track.addEventListener('touchstart', e => { _isDragging = true; seekToPct(pctFromEvent(e.touches[0])); }, { passive: true });
-  document.addEventListener('touchmove', e => { if (!_isDragging) return; seekToPct(pctFromEvent(e.touches[0])); }, { passive: true });
+  track.addEventListener('touchstart', e => {
+    e.stopPropagation();  // don't let sphere capture this touch
+    _isDragging = true;
+    seekToPct(pctFromEvent(e.touches[0]));
+  }, { passive: true });
+  document.addEventListener('touchmove', e => {
+    if (!_isDragging) return;
+    e.stopPropagation();
+    seekToPct(pctFromEvent(e.touches[0]));
+  }, { passive: true });
   document.addEventListener('touchend', () => { _isDragging = false; });
 }
 

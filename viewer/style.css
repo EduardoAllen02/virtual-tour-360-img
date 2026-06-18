@@ -20,8 +20,14 @@ body {
   background: #000;
   cursor: grab;
   overflow: hidden;
+  touch-action: none;   /* prevent browser scroll/zoom hijacking touch */
+  -webkit-user-select: none;
 }
 #viewer.dragging { cursor: grabbing; }
+@media (hover: none) {
+  #viewer { cursor: default; }
+  #viewer.dragging { cursor: default; }
+}
 
 #viewer canvas {
   position: absolute;
@@ -83,7 +89,7 @@ body {
 /* ── Floating Timeline Bar ── */
 #timeline-bar {
   position: fixed;
-  bottom: 20px;
+  bottom: max(20px, env(safe-area-inset-bottom, 20px));
   left: 24px;
   right: 24px;
   z-index: 20;
@@ -110,6 +116,9 @@ body {
   position: relative;
   height: 30px;
   cursor: pointer;
+}
+@media (hover: none) {
+  #tl-track { height: 44px; }
 }
 
 #tl-line {
@@ -477,4 +486,76 @@ body {
 
 #hs-link:hover {
   color: #fff;
+}
+
+/* ── Mobile overrides ── */
+@media (max-width: 600px) {
+  /* Lang toggle — bigger tap targets */
+  .lang-btn {
+    padding: 8px 16px;
+    font-size: 0.78rem;
+  }
+
+  /* Timeline closer to bottom edge, full width */
+  #timeline-bar {
+    left: 12px;
+    right: 12px;
+    border-radius: 14px;
+    padding: 10px 14px 12px;
+  }
+
+  /* Handle wider for easier touch */
+  #tl-handle {
+    width: 32px;
+    height: 16px;
+    margin-top: -8px;
+    margin-left: -16px;
+  }
+
+  /* Hotspot panel → bottom sheet */
+  #hotspot-panel {
+    top: auto !important;
+    bottom: 0 !important;
+    right: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    border-radius: 20px 20px 0 0 !important;
+    transform: translateY(0) !important;
+    max-height: 72dvh;
+    overflow-y: auto;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  #hotspot-panel.hs-hidden {
+    transform: translateY(100%) !important;
+    opacity: 1 !important;
+  }
+
+  #hotspot-panel.hs-visible {
+    transform: translateY(0) !important;
+    opacity: 1 !important;
+  }
+
+  #hs-img { height: 160px; }
+
+  /* Close button — 44px tap target */
+  #hs-close {
+    width: 44px;
+    height: 44px;
+    top: 10px;
+    right: 10px;
+    font-size: 1.1rem;
+  }
+
+  /* Overlay cards — slightly smaller on mobile */
+  .ov-card {
+    min-width: 130px;
+    max-width: 170px;
+    padding: 10px 12px 8px;
+  }
+
+  /* Disable hover transforms on touch */
+  .ov-card:hover { transform: none; box-shadow: none; }
+  .poi-marker:hover .poi-circle { transform: none; background: rgba(255,255,255,0.10); border-color: rgba(255,255,255,0.55); box-shadow: none; }
+  .hs-btn:hover { transform: none; background: rgba(22,186,194,0.92); }
 }
