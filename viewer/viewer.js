@@ -20,6 +20,18 @@ let _seekTarget = -1;  // tracks latest seek to discard stale texture loads
 const textureCache   = new Map();
 const httpPrefetched = new Set();
 
+// ── Public JS API (no UI — for programmatic control and POI placement)
+// Read:  window.tourState.currentFrame  → 0-based index into tour frames
+//        window.tourState.totalFrames   → total frame count
+// Write: window.tourState.goTo(n)       → jump to tour frame n
+//        window.tourState.onFrameChange → assign a callback fn(frameIdx)
+window.tourState = {
+  currentFrame: 0,
+  totalFrames:  0,
+  goTo: (n) => goToFrame(n),
+  onFrameChange: null,
+};
+
 // ── DOM ───────────────────────────────────────────────────────
 const viewerEl   = document.getElementById('viewer');
 const filePicker = document.getElementById('file-picker');
@@ -35,7 +47,7 @@ labelRenderer.domElement.style.pointerEvents = 'none';
 viewerEl.appendChild(labelRenderer.domElement);
 
 const scene  = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(100, 1, 0.1, 1100);
+const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1100);
 
 const sphereGeo = new THREE.SphereGeometry(500, 64, 32);
 sphereGeo.scale(-1, 1, 1);
@@ -44,7 +56,7 @@ const sphere    = new THREE.Mesh(sphereGeo, sphereMat);
 scene.add(sphere);
 
 // ── Camera Control ────────────────────────────────────────────
-let lon = 0, lat = 0, fov = 100;
+let lon = 0, lat = 0, fov = 75;
 const _ptrs      = new Map();  // active pointers: id → {x, y}
 let   _pinchDist = 0;
 
@@ -217,6 +229,9 @@ export function goToFrame(idx) {
   currentIdx  = idx;
   _seekTarget = idx;
 
+  window.tourState.currentFrame = idx;
+  if (typeof window.tourState.onFrameChange === 'function') window.tourState.onFrameChange(idx);
+
   // Update timeline position immediately — don't wait for texture
   if (window._timelineOnFrame) window._timelineOnFrame(idx);
 
@@ -259,6 +274,8 @@ async function init() {
     // Phase 1: preload first 60% — user waits for this
     const phase1End = Math.ceil(frames.length * 0.6);
     await prefetchRange(0, phase1End, null);
+
+    window.tourState.totalFrames = frames.length;
 
     // Tour is ready — show it
     initTimeline(frames.length, config.pois || [], goToFrame, animateCameraTo);
